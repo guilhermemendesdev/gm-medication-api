@@ -31,16 +31,24 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 │   API Gateway   │ (Porta 3000)
 └────────┬────────┘
          │
-         ├─────────────────┐
-         │                 │
-┌────────▼────────┐  ┌─────▼─────┐
-│  Auth Service   │  │  (Futuros │
-│   (Porta 3001)  │  │  Serviços)│
-└────────┬────────┘  └───────────┘
+         ├──────────┬──────────┬──────────┐
+         │          │          │          │
+┌────────▼────────┐┌─────────▼────────┐┌─────────▼────────┐
+│  Auth Service   ││Medication Service││Schedule Service  │
+│   (Porta 3001)  ││   (Porta 3002)   ││   (Porta 3003)   │
+└────────┬────────┘└─────────┬────────┘└─────────┬────────┘
+         │                   │                    │
+         │                   │                    │
+┌────────▼───────────────────▼────────────────────▼────────┐
+│                    PostgreSQL                             │
+│                    (Porta 5432)                           │
+└───────────────────────────────────────────────────────────┘
          │
 ┌────────▼────────┐
-│   PostgreSQL    │
-│   (Porta 5432)  │
+│    RabbitMQ     │
+│  (Porta 5672)   │
+│  Management:    │
+│  (Porta 15672)  │
 └─────────────────┘
 ```
 
@@ -48,6 +56,12 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 
 - **API Gateway** (`apps/api-gateway`): Ponto de entrada da API, roteamento e agregação
 - **Auth Service** (`apps/auth-service`): Autenticação e autorização com JWT
+- **Medication Service** (`apps/medication-service`): Gerenciamento de medicamentos e prescrições
+- **Schedule Service** (`apps/schedule-service`): Gerenciamento de agendamentos de doses
+
+### Mensageria
+
+- **RabbitMQ**: Comunicação assíncrona entre microserviços via eventos (pub/sub)
 
 ### Bibliotecas Compartilhadas
 
@@ -60,6 +74,7 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 - **TypeScript** 5.x - Linguagem principal
 - **Prisma** 5.x - ORM para PostgreSQL
 - **PostgreSQL** 15 - Banco de dados
+- **RabbitMQ** - Mensageria (pub/sub)
 - **JWT** - Autenticação
 - **Swagger** - Documentação da API
 - **Docker & Docker Compose** - Containerização
@@ -156,7 +171,10 @@ npm run docker:up
 
 Isso irá iniciar:
 - PostgreSQL na porta 5432
+- RabbitMQ na porta 5672 (Management na 15672)
 - Auth Service na porta 3001
+- Medication Service na porta 3002
+- Schedule Service na porta 3003
 - API Gateway na porta 3000
 
 Para parar os serviços:
@@ -212,17 +230,70 @@ gm-medication-api/
 │   │   │   ├── app.module.ts
 │   │   │   └── main.ts
 │   │   └── Dockerfile
-│   └── auth-service/         # Serviço de Autenticação
+│   ├── auth-service/         # Serviço de Autenticação
+│   │   ├── src/
+│   │   │   ├── auth/
+│   │   │   │   ├── domain/   # Camada de Domínio
+│   │   │   │   │   ├── entities/
+│   │   │   │   │   ├── ports/        # Interfaces (Ports)
+│   │   │   │   │   └── services/     # Lógica de Negócio
+│   │   │   │   └── infrastructure/   # Camada de Infraestrutura
+│   │   │   │       └── adapters/     # Implementações (Adapters)
+│   │   │   ├── infrastructure/
+│   │   │   │   └── prisma/   # Prisma Service
+│   │   │   ├── app.module.ts
+│   │   │   └── main.ts
+│   │   ├── prisma/
+│   │   │   └── schema.prisma
+│   │   └── Dockerfile
+│   ├── medication-service/   # Serviço de Medicamentos e Prescrições
+│   │   ├── src/
+│   │   │   ├── medication/
+│   │   │   │   ├── domain/
+│   │   │   │   │   ├── entities/
+│   │   │   │   │   └── repositories/
+│   │   │   │   ├── application/
+│   │   │   │   │   ├── use-cases/
+│   │   │   │   │   └── dto/
+│   │   │   │   └── infrastructure/
+│   │   │   │       ├── controllers/
+│   │   │   │       ├── adapters/
+│   │   │   │       └── mappers/
+│   │   │   ├── prescription/
+│   │   │   │   ├── domain/
+│   │   │   │   │   ├── entities/
+│   │   │   │   │   ├── events/
+│   │   │   │   │   ├── repositories/
+│   │   │   │   │   └── ports/
+│   │   │   │   ├── application/
+│   │   │   │   │   ├── use-cases/
+│   │   │   │   │   └── dto/
+│   │   │   │   └── infrastructure/
+│   │   │   │       ├── controllers/
+│   │   │   │       ├── adapters/
+│   │   │   │       └── mappers/
+│   │   │   ├── infrastructure/
+│   │   │   │   └── prisma/
+│   │   │   ├── app.module.ts
+│   │   │   └── main.ts
+│   │   ├── prisma/
+│   │   │   └── schema.prisma
+│   │   └── Dockerfile
+│   └── schedule-service/     # Serviço de Agendamentos
 │       ├── src/
-│       │   ├── auth/
-│       │   │   ├── domain/   # Camada de Domínio
+│       │   ├── schedule/
+│       │   │   ├── domain/
 │       │   │   │   ├── entities/
-│       │   │   │   ├── ports/        # Interfaces (Ports)
-│       │   │   │   └── services/     # Lógica de Negócio
-│       │   │   └── infrastructure/   # Camada de Infraestrutura
-│       │   │       └── adapters/     # Implementações (Adapters)
+│       │   │   │   ├── repositories/
+│       │   │   │   └── ports/
+│       │   │   ├── application/
+│       │   │   │   └── use-cases/
+│       │   │   └── infrastructure/
+│       │   │       ├── controllers/
+│       │   │       ├── adapters/
+│       │   │       └── mappers/
 │       │   ├── infrastructure/
-│       │   │   └── prisma/   # Prisma Service
+│       │   │   └── prisma/
 │       │   ├── app.module.ts
 │       │   └── main.ts
 │       ├── prisma/
@@ -251,9 +322,18 @@ gm-medication-api/
 O projeto segue a arquitetura hexagonal (Ports & Adapters):
 
 - **Domain**: Entidades e lógica de negócio pura
-- **Ports**: Interfaces que definem contratos (ex: `UserRepositoryPort`)
-- **Adapters**: Implementações concretas (ex: `PrismaUserRepositoryAdapter`)
-- **Infrastructure**: Configurações e serviços externos
+- **Ports**: Interfaces que definem contratos (ex: `UserRepositoryPort`, `EventPublisherPort`)
+- **Adapters**: Implementações concretas (ex: `PrismaUserRepositoryAdapter`, `RabbitMQEventPublisherAdapter`)
+- **Infrastructure**: Configurações e serviços externos (Prisma, RabbitMQ, Controllers)
+
+### Comunicação entre Microserviços
+
+A comunicação entre serviços é feita via eventos assíncronos usando RabbitMQ:
+
+1. **Medication Service** publica evento `PrescriptionCreatedEvent` quando uma prescrição é criada
+2. **Schedule Service** consome esse evento e gera automaticamente os agendamentos de doses
+
+Isso garante desacoplamento e escalabilidade entre os serviços.
 
 ## 📚 API Documentation
 
@@ -261,6 +341,9 @@ Após iniciar os serviços, acesse a documentação Swagger:
 
 - **API Gateway**: http://localhost:3000/api/docs
 - **Auth Service**: http://localhost:3001/api/docs
+- **Medication Service**: http://localhost:3002/api/docs
+- **Schedule Service**: http://localhost:3003/api/docs
+- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
 
 ### Endpoints Disponíveis
 
@@ -268,6 +351,24 @@ Após iniciar os serviços, acesse a documentação Swagger:
 
 - `POST /api/v1/auth/register` - Registrar novo usuário
 - `POST /api/v1/auth/login` - Realizar login
+
+#### Medication Service
+
+- `GET /api/v1/medications` - Listar todos os medicamentos
+- `POST /api/v1/medications` - Criar novo medicamento
+- `GET /api/v1/medications/:id` - Buscar medicamento por ID
+- `PUT /api/v1/medications/:id` - Atualizar medicamento
+- `DELETE /api/v1/medications/:id` - Deletar medicamento
+
+- `GET /api/v1/prescriptions` - Listar prescrições (opcional: ?patientId=xxx)
+- `POST /api/v1/prescriptions` - Criar nova prescrição
+- `GET /api/v1/prescriptions/:id` - Buscar prescrição por ID
+- `PUT /api/v1/prescriptions/:id` - Atualizar prescrição
+- `DELETE /api/v1/prescriptions/:id` - Deletar prescrição
+
+#### Schedule Service
+
+- `GET /api/v1/schedules` - Listar agendamentos (opcional: ?patientId=xxx&prescriptionId=xxx)
 
 #### API Gateway
 
@@ -304,6 +405,47 @@ curl -X POST http://localhost:3001/api/v1/auth/login \
 ```bash
 curl -X GET http://localhost:3000/api/v1/health \
   -H "Authorization: Bearer <seu-token-jwt>"
+```
+
+#### Criar Medicamento
+
+```bash
+curl -X POST http://localhost:3002/api/v1/medications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Paracetamol 500mg",
+    "description": "Analgésico e antitérmico",
+    "type": "Analgésico",
+    "imageUrl": "https://example.com/image.jpg"
+  }'
+```
+
+#### Criar Prescrição
+
+```bash
+curl -X POST http://localhost:3002/api/v1/prescriptions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patientId": "550e8400-e29b-41d4-a716-446655440000",
+    "medicationId": "550e8400-e29b-41d4-a716-446655440001",
+    "dose": 500,
+    "unit": "mg",
+    "frequency": "DAILY",
+    "startDate": "2024-01-01T00:00:00.000Z",
+    "endDate": "2024-01-31T23:59:59.000Z"
+  }'
+```
+
+> **Nota**: Ao criar uma prescrição, um evento é publicado no RabbitMQ e o Schedule Service automaticamente gera os agendamentos de doses.
+
+#### Listar Agendamentos
+
+```bash
+# Por paciente
+curl -X GET "http://localhost:3003/api/v1/schedules?patientId=550e8400-e29b-41d4-a716-446655440000"
+
+# Por prescrição
+curl -X GET "http://localhost:3003/api/v1/schedules?prescriptionId=550e8400-e29b-41d4-a716-446655440002"
 ```
 
 ## 📜 Scripts Disponíveis
@@ -357,6 +499,32 @@ npm run start:dev      # Desenvolvimento
 npm run start:prod     # Produção
 npm run build          # Build
 npm run lint           # Lint
+```
+
+#### Medication Service
+
+```bash
+cd apps/medication-service
+
+npm run start:dev      # Desenvolvimento
+npm run start:prod     # Produção
+npm run build          # Build
+npm run lint           # Lint
+npm run prisma:generate  # Gerar Prisma Client
+npm run prisma:migrate   # Executar migrações
+```
+
+#### Schedule Service
+
+```bash
+cd apps/schedule-service
+
+npm run start:dev      # Desenvolvimento
+npm run start:prod     # Produção
+npm run build          # Build
+npm run lint           # Lint
+npm run prisma:generate  # Gerar Prisma Client
+npm run prisma:migrate   # Executar migrações
 ```
 
 ## 🔧 Desenvolvimento

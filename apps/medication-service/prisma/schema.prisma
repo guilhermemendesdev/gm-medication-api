@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Medication {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  type        String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  prescriptions Prescription[]
+
+  @@map("medications")
+}
+
+model Prescription {
+  id            String   @id @default(uuid())
+  patientId     String
+  medicationId  String
+  dose          Float
+  unit          String
+  frequency     String   // DAILY, CUSTOM, INTERVAL_HOURS
+  startDate     DateTime
+  endDate       DateTime
+  intervalHours Int?
+  customSchedule String? // JSON array of times
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  medication Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@map("prescriptions")
+}
+

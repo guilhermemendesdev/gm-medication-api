@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NotificationType {
+  PUSH
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationEventType {
+  SCHEDULED
+  MISSED
+  REMINDER
+}
+
+enum NotificationStatus {
+  SUCCESS
+  FAIL
+}
+
+model NotificationLog {
+  id                String              @id @default(uuid())
+  userId            String
+  type              NotificationType
+  eventType         NotificationEventType
+  notificationContent String
+  sentAt            DateTime            @default(now())
+  status            NotificationStatus
+  errorMessage      String?
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([sentAt])
+  @@map("notification_logs")
+}
+

@@ -44,6 +44,76 @@ services:
       - ./libs:/app/libs
       - /app/node_modules
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: gm-medication-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    networks:
+      - gm-medication-network
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  medication-service:
+    build:
+      context: .
+      dockerfile: apps/medication-service/Dockerfile
+    container_name: gm-medication-medication-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3002
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-gm_medication}?schema=public
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - gm-medication-network
+    volumes:
+      - ./apps/medication-service:/app/apps/medication-service
+      - ./libs:/app/libs
+      - /app/node_modules
+
+  schedule-service:
+    build:
+      context: .
+      dockerfile: apps/schedule-service/Dockerfile
+    container_name: gm-medication-schedule-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3003
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-gm_medication}?schema=public
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - '3003:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - gm-medication-network
+    volumes:
+      - ./apps/schedule-service:/app/apps/schedule-service
+      - ./libs:/app/libs
+      - /app/node_modules
+
   api-gateway:
     build:
       context: .
@@ -57,10 +127,14 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:3001}
+      MEDICATION_SERVICE_URL: ${MEDICATION_SERVICE_URL:-http://medication-service:3002}
+      SCHEDULE_SERVICE_URL: ${SCHEDULE_SERVICE_URL:-http://schedule-service:3003}
     ports:
       - '3000:3000'
     depends_on:
       - auth-service
+      - medication-service
+      - schedule-service
     networks:
       - gm-medication-network
     volumes:

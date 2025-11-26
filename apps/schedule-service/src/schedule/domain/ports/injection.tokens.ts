@@ -1,0 +1,4 @@
+export const INJECTION_TOKENS = {
+  EVENT_PUBLISHER: 'EVENT_PUBLISHER',
+} as const;
+

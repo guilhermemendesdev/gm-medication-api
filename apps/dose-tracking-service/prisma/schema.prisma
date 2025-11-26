@@ -1,0 +1,38 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DoseTrackingStatus {
+  PENDING
+  TAKEN
+  MISSED
+  LATE
+}
+
+model DoseTracking {
+  id             String            @id @default(uuid())
+  doseScheduleId String
+  status         DoseTrackingStatus @default(PENDING)
+  scheduledAt    DateTime
+  takenAt        DateTime?
+  delayInMinutes Int?
+  patientId      String
+  caregiverId    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([doseScheduleId])
+  @@index([patientId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("dose_trackings")
+}
+

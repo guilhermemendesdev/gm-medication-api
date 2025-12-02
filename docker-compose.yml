@@ -114,6 +114,58 @@ services:
       - ./libs:/app/libs
       - /app/node_modules
 
+  dose-tracking-service:
+    build:
+      context: .
+      dockerfile: apps/dose-tracking-service/Dockerfile
+    container_name: gm-medication-dose-tracking-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3004
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-gm_medication}?schema=public
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - '3004:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - gm-medication-network
+    volumes:
+      - ./apps/dose-tracking-service:/app/apps/dose-tracking-service
+      - ./libs:/app/libs
+      - /app/node_modules
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: apps/notification-service/Dockerfile
+    container_name: gm-medication-notification-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3005
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-gm_medication}?schema=public
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - '3005:3005'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - gm-medication-network
+    volumes:
+      - ./apps/notification-service:/app/apps/notification-service
+      - ./libs:/app/libs
+      - /app/node_modules
+
   api-gateway:
     build:
       context: .
@@ -129,12 +181,16 @@ services:
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:3001}
       MEDICATION_SERVICE_URL: ${MEDICATION_SERVICE_URL:-http://medication-service:3002}
       SCHEDULE_SERVICE_URL: ${SCHEDULE_SERVICE_URL:-http://schedule-service:3003}
+      DOSE_TRACKING_SERVICE_URL: ${DOSE_TRACKING_SERVICE_URL:-http://dose-tracking-service:3004}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:3005}
     ports:
       - '3000:3000'
     depends_on:
       - auth-service
       - medication-service
       - schedule-service
+      - dose-tracking-service
+      - notification-service
     networks:
       - gm-medication-network
     volumes:

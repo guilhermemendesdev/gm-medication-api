@@ -31,25 +31,34 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 │   API Gateway   │ (Porta 3000)
 └────────┬────────┘
          │
-         ├──────────┬──────────┬──────────┐
-         │          │          │          │
-┌────────▼────────┐┌─────────▼────────┐┌─────────▼────────┐
-│  Auth Service   ││Medication Service││Schedule Service  │
-│   (Porta 3001)  ││   (Porta 3002)   ││   (Porta 3003)   │
-└────────┬────────┘└─────────┬────────┘└─────────┬────────┘
-         │                   │                    │
-         │                   │                    │
-┌────────▼───────────────────▼────────────────────▼────────┐
-│                    PostgreSQL                             │
-│                    (Porta 5432)                           │
-└───────────────────────────────────────────────────────────┘
-         │
-┌────────▼────────┐
-│    RabbitMQ     │
-│  (Porta 5672)   │
-│  Management:    │
-│  (Porta 15672)  │
-└─────────────────┘
+         ├──────────┬──────────┬──────────┬──────────────┐
+         │          │          │          │              │
+┌────────▼────────┐┌─────────▼────────┐┌─────────▼────────┐┌─────────▼────────┐
+│  Auth Service   ││Medication Service││Schedule Service  ││Dose Tracking Svc │
+│   (Porta 3001)  ││   (Porta 3002)   ││   (Porta 3003)   ││   (Porta 3004)   │
+└─────────────────┘└─────────┬────────┘└─────────┬────────┘└─────────┬────────┘
+                             │                    │                   │
+                             │                    │                   │
+┌────────────────────────────▼────────────────────▼───────────────────▼────────┐
+│                           PostgreSQL                                        │
+│                           (Porta 5432)                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                             │
+┌────────────────────────────▼─────────────────────────────────────────────────┐
+│                           RabbitMQ                                           │
+│                        (Porta 5672)                                          │
+│                        Management: (15672)                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                             │
+                             │ Eventos
+                             │
+┌────────────────────────────▼──────────────┐
+│      Notification Service                 │
+│         (Porta 3005)                      │
+│  - Push Notifications                     │
+│  - Email                                  │
+│  - WhatsApp                               │
+└───────────────────────────────────────────┘
 ```
 
 ### Serviços
@@ -58,6 +67,8 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 - **Auth Service** (`apps/auth-service`): Autenticação e autorização com JWT
 - **Medication Service** (`apps/medication-service`): Gerenciamento de medicamentos e prescrições
 - **Schedule Service** (`apps/schedule-service`): Gerenciamento de agendamentos de doses
+- **Dose Tracking Service** (`apps/dose-tracking-service`): Rastreamento e confirmação de ingestão de doses
+- **Notification Service** (`apps/notification-service`): Envio de notificações (Push, Email, WhatsApp)
 
 ### Mensageria
 
@@ -175,6 +186,8 @@ Isso irá iniciar:
 - Auth Service na porta 3001
 - Medication Service na porta 3002
 - Schedule Service na porta 3003
+- Dose Tracking Service na porta 3004
+- Notification Service na porta 3005
 - API Gateway na porta 3000
 
 Para parar os serviços:
@@ -285,13 +298,53 @@ gm-medication-api/
 │       │   │   ├── domain/
 │       │   │   │   ├── entities/
 │       │   │   │   ├── repositories/
-│       │   │   │   └── ports/
+│       │   │   │   ├── ports/
+│       │   │   │   └── events/
 │       │   │   ├── application/
 │       │   │   │   └── use-cases/
 │       │   │   └── infrastructure/
 │       │   │       ├── controllers/
 │       │   │       ├── adapters/
 │       │   │       └── mappers/
+│       │   ├── infrastructure/
+│       │   │   └── prisma/
+│       │   ├── app.module.ts
+│       │   └── main.ts
+│       ├── prisma/
+│       │   └── schema.prisma
+│       └── Dockerfile
+│   ├── dose-tracking-service/  # Serviço de Rastreamento de Doses
+│   │   ├── src/
+│   │   │   ├── dose-tracking/
+│   │   │   │   ├── domain/
+│   │   │   │   │   ├── entities/
+│   │   │   │   │   ├── events/
+│   │   │   │   │   ├── repositories/
+│   │   │   │   │   └── ports/
+│   │   │   │   ├── application/
+│   │   │   │   │   ├── use-cases/
+│   │   │   │   │   ├── dto/
+│   │   │   │   │   └── services/
+│   │   │   │   └── infrastructure/
+│   │   │   │       ├── controllers/
+│   │   │   │       ├── adapters/
+│   │   │   │       └── mappers/
+│   │   │   ├── infrastructure/
+│   │   │   │   └── prisma/
+│   │   │   ├── app.module.ts
+│   │   │   └── main.ts
+│   │   ├── prisma/
+│   │   │   └── schema.prisma
+│   │   └── Dockerfile
+│   └── notification-service/  # Serviço de Notificações
+│       ├── src/
+│       │   ├── notification/
+│       │   │   ├── domain/
+│       │   │   │   └── ports/
+│       │   │   ├── application/
+│       │   │   │   └── services/
+│       │   │   └── infrastructure/
+│       │   │       └── adapters/
 │       │   ├── infrastructure/
 │       │   │   └── prisma/
 │       │   ├── app.module.ts
@@ -330,8 +383,36 @@ O projeto segue a arquitetura hexagonal (Ports & Adapters):
 
 A comunicação entre serviços é feita via eventos assíncronos usando RabbitMQ:
 
-1. **Medication Service** publica evento `PrescriptionCreatedEvent` quando uma prescrição é criada
-2. **Schedule Service** consome esse evento e gera automaticamente os agendamentos de doses
+#### Fluxo de Eventos
+
+1. **PrescriptionCreatedEvent**
+   - **Publisher**: Medication Service
+   - **Subscribers**: Schedule Service
+   - **Ação**: Gera agendamentos de doses automaticamente
+
+2. **DoseScheduledEvent**
+   - **Publisher**: Schedule Service
+   - **Subscribers**: Dose Tracking Service, Notification Service
+   - **Ação**: 
+     - Dose Tracking cria registro de tracking
+     - Notification Service envia lembrete ao paciente
+
+3. **DoseTakenEvent**
+   - **Publisher**: Dose Tracking Service
+   - **Subscribers**: Notification Service (opcional)
+   - **Ação**: Confirma ingestão e registra status
+
+4. **DoseMissedEvent**
+   - **Publisher**: Dose Tracking Service
+   - **Subscribers**: Notification Service
+   - **Ação**: Alerta cuidador e paciente sobre dose perdida
+
+#### Canais de Notificação
+
+O Notification Service suporta três canais (estrutura preparada, implementação mock):
+- **Push Notifications**: Firebase Cloud Messaging / OneSignal
+- **Email**: Nodemailer
+- **WhatsApp**: Twilio / Meta WhatsApp Cloud API
 
 Isso garante desacoplamento e escalabilidade entre os serviços.
 
@@ -343,6 +424,8 @@ Após iniciar os serviços, acesse a documentação Swagger:
 - **Auth Service**: http://localhost:3001/api/docs
 - **Medication Service**: http://localhost:3002/api/docs
 - **Schedule Service**: http://localhost:3003/api/docs
+- **Dose Tracking Service**: http://localhost:3004/api/docs
+- **Notification Service**: http://localhost:3005/api/docs
 - **RabbitMQ Management**: http://localhost:15672 (guest/guest)
 
 ### Endpoints Disponíveis
@@ -369,6 +452,12 @@ Após iniciar os serviços, acesse a documentação Swagger:
 #### Schedule Service
 
 - `GET /api/v1/schedules` - Listar agendamentos (opcional: ?patientId=xxx&prescriptionId=xxx)
+
+#### Dose Tracking Service
+
+- `POST /api/v1/dose/confirm/:doseId` - Confirmar ingestão de dose
+- `GET /api/v1/dose/:doseId/status` - Obter status de uma dose
+- `GET /api/v1/dose/patient/:patientId` - Listar histórico de doses de um paciente (opcional: ?startDate=xxx&endDate=xxx)
 
 #### API Gateway
 
@@ -448,6 +537,28 @@ curl -X GET "http://localhost:3003/api/v1/schedules?patientId=550e8400-e29b-41d4
 curl -X GET "http://localhost:3003/api/v1/schedules?prescriptionId=550e8400-e29b-41d4-a716-446655440002"
 ```
 
+#### Confirmar Ingestão de Dose
+
+```bash
+curl -X POST http://localhost:3004/api/v1/dose/confirm/550e8400-e29b-41d4-a716-446655440003 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "takenAt": "2024-01-15T14:30:00.000Z"
+  }'
+```
+
+#### Verificar Status de Dose
+
+```bash
+curl -X GET http://localhost:3004/api/v1/dose/550e8400-e29b-41d4-a716-446655440003/status
+```
+
+#### Listar Histórico de Doses do Paciente
+
+```bash
+curl -X GET "http://localhost:3004/api/v1/dose/patient/550e8400-e29b-41d4-a716-446655440000?startDate=2024-01-01&endDate=2024-01-31"
+```
+
 ## 📜 Scripts Disponíveis
 
 ### Scripts Principais
@@ -518,6 +629,32 @@ npm run prisma:migrate   # Executar migrações
 
 ```bash
 cd apps/schedule-service
+
+npm run start:dev      # Desenvolvimento
+npm run start:prod     # Produção
+npm run build          # Build
+npm run lint           # Lint
+npm run prisma:generate  # Gerar Prisma Client
+npm run prisma:migrate   # Executar migrações
+```
+
+#### Dose Tracking Service
+
+```bash
+cd apps/dose-tracking-service
+
+npm run start:dev      # Desenvolvimento
+npm run start:prod     # Produção
+npm run build          # Build
+npm run lint           # Lint
+npm run prisma:generate  # Gerar Prisma Client
+npm run prisma:migrate   # Executar migrações
+```
+
+#### Notification Service
+
+```bash
+cd apps/notification-service
 
 npm run start:dev      # Desenvolvimento
 npm run start:prod     # Produção

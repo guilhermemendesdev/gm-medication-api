@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { DoseTracking } from '../../domain/entities/dose-tracking.entity';
+import { DoseTracking, DoseTrackingStatus } from '../../domain/entities/dose-tracking.entity';
 import { DoseTrackingRepositoryPort } from '../../domain/repositories/dose-tracking.repository.port';
 import { INJECTION_TOKENS } from '../../domain/repositories/injection.tokens';
 
@@ -32,7 +32,7 @@ export class CreateDoseTrackingUseCase {
       scheduledAt: data.scheduledAt,
       patientId: data.patientId,
       caregiverId: data.caregiverId,
-      status: 'PENDING' as any,
+      status: DoseTrackingStatus.PENDING,
     });
 
     return await this.doseTrackingRepository.create(doseTracking);

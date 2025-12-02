@@ -1,0 +1,4 @@
+export const INJECTION_TOKENS = {
+  REPORT_REPOSITORY: 'REPORT_REPOSITORY',
+} as const;
+

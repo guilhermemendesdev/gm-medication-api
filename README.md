@@ -45,20 +45,20 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 └─────────────────────────────────────────────────────────────────────────────┘
                              │
 ┌────────────────────────────▼─────────────────────────────────────────────────┐
-│                           RabbitMQ                                           │
-│                        (Porta 5672)                                          │
-│                        Management: (15672)                                   │
+│                    RabbitMQ          Redis                                   │
+│                 (Porta 5672)      (Porta 6379)                               │
+│              Management: (15672)                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
                              │
-                             │ Eventos
+                             │ Eventos / Cache
                              │
-┌────────────────────────────▼──────────────┐
-│      Notification Service                 │
-│         (Porta 3005)                      │
-│  - Push Notifications                     │
-│  - Email                                  │
-│  - WhatsApp                               │
-└───────────────────────────────────────────┘
+┌────────────────────────────▼──────────────┐┌─────────────────────────────────┐
+│      Notification Service                 ││      Report Service             │
+│         (Porta 3005)                      ││         (Porta 3006)            │
+│  - Push Notifications                     ││  - Relatórios agregados         │
+│  - Email                                  ││  - Métricas e KPIs              │
+│  - WhatsApp                               ││  - Cache Redis                  │
+└───────────────────────────────────────────┘└─────────────────────────────────┘
 ```
 
 ### Serviços
@@ -69,6 +69,7 @@ Sistema de monitoramento de medicamentos desenvolvido seguindo os princípios de
 - **Schedule Service** (`apps/schedule-service`): Gerenciamento de agendamentos de doses
 - **Dose Tracking Service** (`apps/dose-tracking-service`): Rastreamento e confirmação de ingestão de doses
 - **Notification Service** (`apps/notification-service`): Envio de notificações (Push, Email, WhatsApp)
+- **Report Service** (`apps/report-service`): Relatórios agregados e métricas para dashboard
 
 ### Mensageria
 
@@ -183,11 +184,13 @@ npm run docker:up
 Isso irá iniciar:
 - PostgreSQL na porta 5432
 - RabbitMQ na porta 5672 (Management na 15672)
+- Redis na porta 6379
 - Auth Service na porta 3001
 - Medication Service na porta 3002
 - Schedule Service na porta 3003
 - Dose Tracking Service na porta 3004
 - Notification Service na porta 3005
+- Report Service na porta 3006
 - API Gateway na porta 3000
 
 Para parar os serviços:
@@ -426,6 +429,7 @@ Após iniciar os serviços, acesse a documentação Swagger:
 - **Schedule Service**: http://localhost:3003/api/docs
 - **Dose Tracking Service**: http://localhost:3004/api/docs
 - **Notification Service**: http://localhost:3005/api/docs
+- **Report Service**: http://localhost:3006/api/docs
 - **RabbitMQ Management**: http://localhost:15672 (guest/guest)
 
 ### Endpoints Disponíveis
@@ -458,6 +462,14 @@ Após iniciar os serviços, acesse a documentação Swagger:
 - `POST /api/v1/dose/confirm/:doseId` - Confirmar ingestão de dose
 - `GET /api/v1/dose/:doseId/status` - Obter status de uma dose
 - `GET /api/v1/dose/patient/:patientId` - Listar histórico de doses de um paciente (opcional: ?startDate=xxx&endDate=xxx)
+
+#### Report Service
+
+- `GET /api/v1/reports/patient/:id/daily` - Relatório diário (opcional: ?date=YYYY-MM-DD)
+- `GET /api/v1/reports/patient/:id/weekly` - Relatório semanal (opcional: ?weekStart=ISO)
+- `GET /api/v1/reports/patient/:id/monthly` - Relatório mensal (opcional: ?month=1-12&year=YYYY)
+- `GET /api/v1/reports/patient/:id/overview` - Visão geral com KPIs
+- `GET /api/v1/reports/patient/:id/timeline` - Timeline de eventos (opcional: ?startDate=ISO&endDate=ISO)
 
 #### API Gateway
 

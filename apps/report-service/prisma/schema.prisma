@@ -1,0 +1,82 @@
+// Report Service não tem suas próprias tabelas
+// Ele consulta dados dos outros serviços que compartilham o mesmo banco
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelos necessários para consultas agregadas
+// Estes modelos espelham os schemas dos outros serviços
+
+model Medication {
+  id          String   @id
+  name        String
+  description String
+  type        String
+  imageUrl    String?
+  createdAt   DateTime
+  updatedAt   DateTime
+
+  prescriptions Prescription[]
+
+  @@map("medications")
+}
+
+model Prescription {
+  id            String   @id
+  patientId     String
+  medicationId  String
+  dose          Float
+  unit          String
+  frequency     String
+  startDate     DateTime
+  endDate       DateTime
+  intervalHours Int?
+  customSchedule String?
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  medication Medication @relation(fields: [medicationId], references: [id])
+
+  @@map("prescriptions")
+}
+
+model DoseSchedule {
+  id            String   @id
+  prescriptionId String
+  patientId     String
+  scheduledAt   DateTime
+  status        String
+  createdAt     DateTime
+  updatedAt     DateTime
+
+  @@index([prescriptionId])
+  @@index([patientId])
+  @@index([scheduledAt])
+  @@map("dose_schedules")
+}
+
+model DoseTracking {
+  id             String   @id
+  doseScheduleId String
+  status         String
+  scheduledAt    DateTime
+  takenAt        DateTime?
+  delayInMinutes Int?
+  patientId      String
+  caregiverId    String?
+  createdAt      DateTime
+  updatedAt      DateTime
+
+  @@index([doseScheduleId])
+  @@index([patientId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@map("dose_trackings")
+}
+

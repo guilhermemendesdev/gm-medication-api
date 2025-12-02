@@ -62,6 +62,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: gm-medication-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - gm-medication-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   medication-service:
     build:
       context: .
@@ -166,6 +180,33 @@ services:
       - ./libs:/app/libs
       - /app/node_modules
 
+  report-service:
+    build:
+      context: .
+      dockerfile: apps/report-service/Dockerfile
+    container_name: gm-medication-report-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3006
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-gm_medication}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - '3006:3006'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - gm-medication-network
+    volumes:
+      - ./apps/report-service:/app/apps/report-service
+      - ./libs:/app/libs
+      - /app/node_modules
+
   api-gateway:
     build:
       context: .
@@ -183,6 +224,7 @@ services:
       SCHEDULE_SERVICE_URL: ${SCHEDULE_SERVICE_URL:-http://schedule-service:3003}
       DOSE_TRACKING_SERVICE_URL: ${DOSE_TRACKING_SERVICE_URL:-http://dose-tracking-service:3004}
       NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification-service:3005}
+      REPORT_SERVICE_URL: ${REPORT_SERVICE_URL:-http://report-service:3006}
     ports:
       - '3000:3000'
     depends_on:
@@ -191,6 +233,7 @@ services:
       - schedule-service
       - dose-tracking-service
       - notification-service
+      - report-service
     networks:
       - gm-medication-network
     volumes:
